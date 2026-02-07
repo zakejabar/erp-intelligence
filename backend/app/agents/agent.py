@@ -3,7 +3,7 @@
 import operator
 from typing import Annotated, List, Literal, TypedDict, Union
 
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 from langgraph.graph import StateGraph, END
@@ -12,7 +12,7 @@ from langgraph.graph import StateGraph, END
 from app.core.config import settings
 
 # --- CRITICAL: Import Tools or Comment them out if tools.py isn't ready yet ---
-# from app.agents.tools import operations_tools, risk_tools 
+from app.agents.tools import operations_tools, risk_tools, finance_tools 
 # FOR NOW: I will define empty lists so the code doesn't crash while you build tools.py
 operations_tools = [] 
 risk_tools = []
@@ -38,7 +38,7 @@ class RouteQuery(BaseModel):
 
 def supervisor_node(state):
     messages = state["messages"]
-    llm = ChatOpenAI(model=settings.MODEL_NAME, temperature=0)
+    llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, temperature=0)
     
     # BIND OUTPUT: Force the LLM to choose one of our 3 agents
     structured_llm = llm.with_structured_output(RouteQuery)
@@ -62,7 +62,10 @@ def supervisor_node(state):
 def finance_agent(state: AgentState):
     # FIX 1: Typo fixed (message -> messages)
     messages = state["messages"]
-    llm = ChatOpenAI(model=settings.MODEL_NAME, temperature=0)
+    llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, temperature=0)
+
+    if finance_tools:
+        llm = llm.bind_tools(finance_tools)
     
     finance_prompt = SystemMessage(content="""
         You are the Finance Agent for the ERP Intelligence Layer.
@@ -74,7 +77,7 @@ def finance_agent(state: AgentState):
 
 def operations_agent(state: AgentState):
     messages = state["messages"]
-    llm = ChatOpenAI(model=settings.MODEL_NAME, temperature=0)
+    llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, temperature=0)
     
     # FIX 2: Check if tools exist to avoid crash
     if operations_tools:
@@ -89,7 +92,7 @@ def operations_agent(state: AgentState):
 
 def risk_agent(state: AgentState):
     messages = state["messages"]
-    llm = ChatOpenAI(model=settings.MODEL_NAME, temperature=0)
+    llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, temperature=0)
     
     if risk_tools:
         llm = llm.bind_tools(risk_tools)

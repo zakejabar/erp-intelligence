@@ -16,11 +16,24 @@ async def root():
 
 @app.post("/v1/agent/run")
 async def run_agent(request: QueryRequest):
-    # Placeholder: We will connect LangGraph here in the next step
+    from app.agents.agent import app as agent_app
+    
+    # 1. Prepare the input for the agent
+    initial_state = {
+        "messages": [HumanMessage(content=request.user_query)]
+    }
+    
+    # 2. Run the graph
+    result = agent_app.invoke(initial_state)
+    
+    # 3. Extract the final response
+    # The last message in the 'messages' list is the AI's answer
+    final_message = result["messages"][-1].content
+    
     return {
-        "response": f"Received query: {request.user_query}",
-        "thought_process": ["Supervisor received request", "Routing to Finance Agent..."],
-        "action": "Analyzing Mock Data"
+        "response": final_message,
+        "thought_process": [str(m) for m in result["messages"]], # metrics/debug
+        "action": "Agent Execution Complete"
     }
 
 if __name__ == "__main__":
