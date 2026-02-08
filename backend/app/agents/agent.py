@@ -9,7 +9,8 @@ from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 from langgraph.graph import StateGraph, END
 
 # Import your settings
-from app.core.config import settings
+from app.agents.config import settings
+from app.agents.tools import get_open_invoices, process_file
 
 # --- CRITICAL: Import Tools or Comment them out if tools.py isn't ready yet ---
 # from app.agents.tools import operations_tools, risk_tools, finance_tools 
@@ -25,10 +26,12 @@ class AgentState(TypedDict):
     next_step: str
     # Context data pulled from GraphRAG or ERP (Optional for now)
     current_context: dict
+
+    file_input: str
     # The final structured report for the frontend (Optional for now)
     final_report: dict
 
-    file_input: str
+    
 
 # Supervisor (Router)
 class RouteQuery(BaseModel):
@@ -42,7 +45,7 @@ def supervisor_node(state):
     messages = state["messages"]
     llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, temperature=0)
     
-    # BIND OUTPUT: Force the LLM to choose one of our 3 agents
+    # LLM choose one of our 3 agents
     structured_llm = llm.with_structured_output(RouteQuery)
     
     system_prompt = SystemMessage(content="""
@@ -66,15 +69,19 @@ def finance_agent(state: AgentState):
     messages = state["messages"]
     llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, temperature=0)
 
-    if finance_tools:
-        llm = llm.bind_tools(finance_tools)
+    llm_with_tools = llm.bind_tools([get_open_invoices, process_file])
+
+    file_path = state.get("file_input", "No file uploaded")
     
-    finance_prompt = SystemMessage(content="""
-        You are the Finance Agent for the ERP Intelligence Layer.
-        Your job is to answer the user's request about money, invoices, or budget.
+    finance_prompt = SystemMessage(content=f"""
+        You are the Finance Agent. 
+        You have access to a file at this path: {file_path}.
+        
+        ALWAYS check the file content first using the 'process_file' tool if the user asks about a file.
+        Then answer the question.
     """)
     
-    response = llm.invoke([finance_prompt] + messages)
+    response = llm_with_tools.invoke([finance_prompt] + messages)
     return {"messages": [response]}
 
 def operations_agent(state: AgentState):

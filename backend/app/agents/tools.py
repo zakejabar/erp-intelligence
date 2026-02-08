@@ -5,7 +5,7 @@ from typing import List, Dict
 
 # 1. Define where our mock data lives
 # We use os.path to make sure it works on Windows and Mac
-MOCK_DATA_PATH = os.path.join(os.path.dirname(__file__), "../../data_mocks/invoices.json")
+MOCK_DATA_PATH = os.path.join(os.path.dirname(__file__), "../../../data_mocks/invoices.json")
 
 @tool
 def get_open_invoices(vendor_name: str = None) -> str:
@@ -46,5 +46,25 @@ def get_open_invoices(vendor_name: str = None) -> str:
     except Exception as e:
         return f"Error fetching invoices: {str(e)}"
 
+def process_file(file_path: str) -> str:
+
+    try: 
+        if not os.path.exists(file_path): 
+            return "File not found"
+
+        if file_path.endswith(".csv"):
+            with open(file_path, "r") as f:
+                return f.read()
+        elif file_path.endswith(".json"):
+            with open(file_path, "r") as f:
+                data = json.load(f)
+                return json.dumps(data, indent=2)
+        else:
+            with open(file_path, "r") as f:
+                return f.read()
+
+    except Exception as e:
+        return f"Error processing file: {str(e)}"
+
 # 2. Export the list so agent.py can import it
-finance_tools = [get_open_invoices]
+finance_tools = [get_open_invoices, process_file]
