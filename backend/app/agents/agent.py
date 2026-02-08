@@ -12,12 +12,12 @@ from langgraph.graph import StateGraph, END
 from app.core.config import settings
 
 # --- CRITICAL: Import Tools or Comment them out if tools.py isn't ready yet ---
-from app.agents.tools import operations_tools, risk_tools, finance_tools 
+# from app.agents.tools import operations_tools, risk_tools, finance_tools 
 # FOR NOW: I will define empty lists so the code doesn't crash while you build tools.py
-operations_tools = [] 
-risk_tools = []
+# operations_tools = [] 
+# risk_tools = []
 
-# --- 1. THE SHARED STATE ---
+# State definition
 class AgentState(TypedDict):
     # The full conversation history
     messages: Annotated[List[BaseMessage], operator.add]
@@ -28,7 +28,9 @@ class AgentState(TypedDict):
     # The final structured report for the frontend (Optional for now)
     final_report: dict
 
-# --- 2. THE SUPERVISOR (ROUTER) ---
+    file_input: str
+
+# Supervisor (Router)
 class RouteQuery(BaseModel):
     """Route the user's query to the most relevant worker."""
     destination: Literal["Finance_Agent", "Operations_Agent", "Risk_Agent"] = Field(
@@ -133,4 +135,4 @@ workflow.add_edge("Operations_Agent", END)
 workflow.add_edge("Risk_Agent", END)
 
 # Compile
-app = workflow.compile()
+agent_app = workflow.compile()
