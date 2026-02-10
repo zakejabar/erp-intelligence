@@ -1,22 +1,22 @@
 # backend/app/agents/agent.py
-
+from dotenv import load_dotenv
+load_dotenv()
 import operator
 from typing import Annotated, List, Literal, TypedDict, Union
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 from langgraph.graph import StateGraph, END
+import os
 
 # Import your settings
 from app.agents.config import settings
 from app.agents.tools import get_open_invoices, process_file
 
-# --- CRITICAL: Import Tools or Comment them out if tools.py isn't ready yet ---
-# from app.agents.tools import operations_tools, risk_tools, finance_tools 
-# FOR NOW: I will define empty lists so the code doesn't crash while you build tools.py
-# operations_tools = [] 
-# risk_tools = []
+
+operations_tools = [process_file] 
+risk_tools = [process_file]
 
 # State definition
 class AgentState(TypedDict):
@@ -34,6 +34,8 @@ class AgentState(TypedDict):
     
 
 # Supervisor (Router)
+# No change needed here if import was swapped. I will check terminal first.
+
 class RouteQuery(BaseModel):
     """Route the user's query to the most relevant worker."""
     destination: Literal["Finance_Agent", "Operations_Agent", "Risk_Agent"] = Field(
@@ -43,7 +45,7 @@ class RouteQuery(BaseModel):
 
 def supervisor_node(state):
     messages = state["messages"]
-    llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, temperature=0)
+    llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, google_api_key=settings.GEMINI_API_KEY, temperature=0)
     
     # LLM choose one of our 3 agents
     structured_llm = llm.with_structured_output(RouteQuery)
@@ -67,18 +69,35 @@ def supervisor_node(state):
 def finance_agent(state: AgentState):
     # FIX 1: Typo fixed (message -> messages)
     messages = state["messages"]
-    llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, temperature=0)
+    llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, google_api_key=settings.GEMINI_API_KEY, temperature=0)
 
     llm_with_tools = llm.bind_tools([get_open_invoices, process_file])
 
     file_path = state.get("file_input", "No file uploaded")
+
+    file_content = ""
+    if file_path and os.path.exists(file_path):
+        file_content = process_file(file_path)
     
     finance_prompt = SystemMessage(content=f"""
-        You are the Finance Agent. 
-        You have access to a file at this path: {file_path}.
+        You are an expert Finance Analyst Agent.
         
-        ALWAYS check the file content first using the 'process_file' tool if the user asks about a file.
-        Then answer the question.
+        CONTEXT:
+        The user has uploaded a file (likely an invoice, receipt, or financial report).
+        The content of this file is provided below.
+        
+        FILE CONTENT:
+        -------------------------------------------
+        {file_content}
+        -------------------------------------------
+        
+        YOUR TASK:
+        Analyze the file content above in the context of the user's latest message. 
+        - If the user asks for specific details (dates, amounts, vendor), extract them accurately.
+        - If the file content is empty or unreadable, politely inform the user.
+        - Ignore any irrelevant data in the file.
+        
+        Answer concisely and professionally.
     """)
     
     response = llm_with_tools.invoke([finance_prompt] + messages)
@@ -86,28 +105,39 @@ def finance_agent(state: AgentState):
 
 def operations_agent(state: AgentState):
     messages = state["messages"]
-    llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, temperature=0)
+    llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, google_api_key=settings.GEMINI_API_KEY, temperature=0)
     
     # FIX 2: Check if tools exist to avoid crash
     if operations_tools:
         llm = llm.bind_tools(operations_tools)
     
-    operations_prompt = SystemMessage(content="""
-    You are the Operations Agent. Manage stock and vendors.""")
+    file_path = state.get("file_input", "No file uploaded")
+    
+    operations_prompt = SystemMessage(content=f"""
+    You are the Operations Agent. Manage stock and vendors.
+    You have access to a file at this path: {file_path}.
+    ALWAYS check the file content first if the user asks about a file.
+    """)
 
     # FIX 3: Invoke the LLM that has tools bound (reassigned above)
     response = llm.invoke([operations_prompt] + messages)
     return {"messages": [response]}
 
+
 def risk_agent(state: AgentState):
     messages = state["messages"]
-    llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, temperature=0)
+    llm = ChatGoogleGenerativeAI(model=settings.MODEL_NAME, google_api_key=settings.GEMINI_API_KEY, temperature=0)
     
     if risk_tools:
         llm = llm.bind_tools(risk_tools)
     
-    risk_prompt = SystemMessage(content="""
-    You are the Risk Agent. Analyze transaction anomalies and flag fraud risks.""")
+    file_path = state.get("file_input", "No file uploaded")
+    
+    risk_prompt = SystemMessage(content=f"""
+    You are the Risk Agent. Analyze transaction anomalies and flag fraud risks.
+    You have access to a file at this path: {file_path}.
+    ALWAYS check the file content first if the user asks about a file.
+    """)
     
     response = llm.invoke([risk_prompt] + messages)
     return {"messages": [response]}

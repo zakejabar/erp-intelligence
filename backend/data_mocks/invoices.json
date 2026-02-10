@@ -1,0 +1,26 @@
+[
+    {
+        "id": "INV-1001",
+        "vendor": "Alpha Supply Co",
+        "amount": 5000,
+        "due_date": "2023-11-01",
+        "status": "UNPAID",
+        "category": "Raw Materials"
+    },
+    {
+        "id": "INV-1002",
+        "vendor": "Beta Logistics",
+        "amount": 12000,
+        "due_date": "2023-10-15",
+        "status": "OVERDUE",
+        "category": "Shipping"
+    },
+    {
+        "id": "INV-1003",
+        "vendor": "Gamma Services",
+        "amount": 250,
+        "due_date": "2023-11-05",
+        "status": "UNPAID",
+        "category": "Office Supplies"
+    }
+]
